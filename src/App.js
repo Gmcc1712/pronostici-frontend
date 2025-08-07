@@ -5,9 +5,26 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAllPronostics, setShowAllPronostics] = useState({});
+  const [selectedDate, setSelectedDate] = useState(''); // Data selezionata
 
-  useEffect(() => {
-    fetch('https://pronostici-backend.onrender.com/api/matches')
+  // Funzione per ottenere data di oggi in formato YYYY-MM-DD
+  const getTodayString = () => {
+    const today = new Date();
+    return today.toISOString().slice(0, 10);
+  };
+
+  // Funzione per caricare partite
+  const loadMatches = (date = '') => {
+    setLoading(true);
+    setError(null);
+    
+    const url = date 
+      ? `https://pronostici-backend.onrender.com/api/matches?date=${date}`
+      : 'https://pronostici-backend.onrender.com/api/matches';
+    
+    console.log(`🔄 Caricando partite da: ${url}`);
+    
+    fetch(url)
       .then(res => {
         if (!res.ok) throw new Error('Errore nel caricamento');
         return res.json();
@@ -20,13 +37,28 @@ function App() {
         setError(err.message);
         setLoading(false);
       });
+  };
+
+  // Carica partite di oggi al primo avvio
+  useEffect(() => {
+    const today = getTodayString();
+    setSelectedDate(today);
+    loadMatches(today);
   }, []);
 
+  // Gestisce cambio data
+  const handleDateChange = (e) => {
+    const newDate = e.target.value;
+    setSelectedDate(newDate);
+    loadMatches(newDate);
+    setShowAllPronostics({}); // Reset pronostici espansi
+  };
+
   const getPronosticoColor = (probabilita) => {
-    if (probabilita >= 75) return '#4CAF50'; // Verde scuro - alta probabilità
-    if (probabilita >= 65) return '#8BC34A'; // Verde chiaro
-    if (probabilita >= 55) return '#FF9800'; // Arancione
-    return '#9E9E9E'; // Grigio - bassa probabilità
+    if (probabilita >= 75) return '#4CAF50';
+    if (probabilita >= 65) return '#8BC34A';
+    if (probabilita >= 55) return '#FF9800';
+    return '#9E9E9E';
   };
 
   const getMercatoColor = (mercato) => {
@@ -46,11 +78,30 @@ function App() {
     }));
   };
 
+  const formatDateForDisplay = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    
+    const dateStr = date.toISOString().slice(0, 10);
+    const todayStr = today.toISOString().slice(0, 10);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+    
+    if (dateStr === todayStr) return '🗓️ Oggi';
+    if (dateStr === tomorrowStr) return '🗓️ Domani';
+    
+    return `🗓️ ${date.toLocaleDateString('it-IT', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long' 
+    })}`;
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
         <div style={{ fontSize: '24px', marginBottom: '20px' }}>🤖 AI Super-Intelligente</div>
-        <div>Analizzando partite future e calcolando probabilità...</div>
+        <div>Analizzando partite per {selectedDate ? formatDateForDisplay(selectedDate) : 'oggi'}...</div>
         <div style={{ marginTop: '10px', color: '#666', fontSize: '14px' }}>
           Mercati: 1X2 • Doppia Chance • Under/Over • Goal/No Goal
         </div>
@@ -70,9 +121,49 @@ function App() {
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '900px', margin: '0 auto' }}>
       <header style={{ textAlign: 'center', marginBottom: '30px' }}>
         <h1>🤖 AI Super-Intelligente</h1>
-        <div style={{ color: '#666', marginBottom: '10px' }}>
+        <div style={{ color: '#666', marginBottom: '20px' }}>
           Pronostici automatici con analisi di 16 mercati diversi
         </div>
+        
+        {/* SELETTORE DATA */}
+        <div style={{ 
+          backgroundColor: '#f0f0f0', 
+          padding: '15px', 
+          borderRadius: '12px', 
+          marginBottom: '20px',
+          display: 'inline-block'
+        }}>
+          <label style={{ 
+            display: 'block', 
+            marginBottom: '8px', 
+            fontWeight: 'bold', 
+            color: '#333' 
+          }}>
+            📅 Seleziona data:
+          </label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={handleDateChange}
+            min="2025-01-01"
+            max="2025-12-31"
+            style={{
+              padding: '10px 15px',
+              fontSize: '16px',
+              border: '2px solid #2196F3',
+              borderRadius: '8px',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          />
+          {selectedDate && (
+            <div style={{ marginTop: '8px', color: '#555', fontSize: '14px' }}>
+              {formatDateForDisplay(selectedDate)}
+            </div>
+          )}
+        </div>
+        
         <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', flexWrap: 'wrap', fontSize: '12px' }}>
           <span style={{ backgroundColor: '#2196F3', color: 'white', padding: '3px 8px', borderRadius: '10px' }}>1X2</span>
           <span style={{ backgroundColor: '#FF9800', color: 'white', padding: '3px 8px', borderRadius: '10px' }}>Doppia Chance</span>
@@ -81,12 +172,24 @@ function App() {
         </div>
       </header>
       
+      {/* MESSAGGIO QUANDO NON CI SONO PARTITE */}
       {matches.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '50px' }}>
-          📅 Nessuna partita futura trovata per questo periodo
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '50px',
+          backgroundColor: '#f9f9f9',
+          borderRadius: '15px',
+          border: '2px dashed #ccc'
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '15px' }}>😴</div>
+          <h3>Nessuna partita per {formatDateForDisplay(selectedDate)}</h3>
+          <p style={{ color: '#666' }}>
+            Prova a selezionare un'altra data o controlla nei giorni successivi.
+          </p>
         </div>
       )}
       
+      {/* LISTA PARTITE */}
       {matches.map(match => (
         <div key={match.id} style={{ 
           border: '2px solid #e0e0e0', 
@@ -102,7 +205,10 @@ function App() {
               {match.homeTeam.name} vs {match.awayTeam.name}
             </h3>
             <div style={{ color: '#666', fontSize: '14px', marginBottom: '8px' }}>
-              📅 {new Date(match.utcDate).toLocaleString()}
+              ⏰ {new Date(match.utcDate).toLocaleTimeString('it-IT', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
               <br />
               🏆 {match.competition?.name || 'Campionato'}
             </div>
@@ -116,14 +222,14 @@ function App() {
                 color: '#555',
                 flexWrap: 'wrap'
               }}>
-                <span>📊 Casa: {match.aiPronostico.datiStatistici.homePosition}° posto</span>
-                <span>📊 Trasferta: {match.aiPronostico.datiStatistici.awayPosition}° posto</span>
+                <span>💪 Casa: {match.aiPronostico.datiStatistici.homeStrength}/10</span>
+                <span>💪 Trasferta: {match.aiPronostico.datiStatistici.awayStrength}/10</span>
                 <span>⚽ Gol attesi: {match.aiPronostico.datiStatistici.expectedGoals}</span>
               </div>
             )}
           </div>
           
-          {/* Pronostico principale (il migliore) */}
+          {/* Pronostico principale */}
           {match.aiPronostico?.pronosticoMigliore && (
             <div style={{ marginBottom: '20px' }}>
               <div style={{ 
@@ -210,7 +316,7 @@ function App() {
             </button>
           </div>
 
-          {/* Tutti i pronostici (mostrati solo se richiesto) */}
+          {/* Tutti i pronostici */}
           {showAllPronostics[match.id] && match.aiPronostico?.tuttiPronostici && (
             <div style={{ 
               backgroundColor: 'white', 
@@ -267,7 +373,7 @@ function App() {
       ))}
       
       <footer style={{ textAlign: 'center', marginTop: '40px', color: '#666', fontSize: '12px' }}>
-        🤖 AI Super-Intelligente • 16 mercati analizzati per partita
+        🤖 AI Super-Intelligente • 16 mercati analizzati per partita • Seleziona qualsiasi data
         <br />
         ⚠️ I pronostici sono generati automaticamente e non garantiscono risultati reali
       </footer>
