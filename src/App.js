@@ -5,7 +5,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAllPronostics, setShowAllPronostics] = useState({});
-  const [selectedDate, setSelectedDate] = useState(''); // Data selezionata
+  const [selectedDate, setSelectedDate] = useState('');
+  const [debugInfo, setDebugInfo] = useState(null);
 
   // Funzione per ottenere data di oggi in formato YYYY-MM-DD
   const getTodayString = () => {
@@ -17,6 +18,7 @@ function App() {
   const loadMatches = (date = '') => {
     setLoading(true);
     setError(null);
+    setDebugInfo(null);
     
     const url = date 
       ? `https://pronostici-backend.onrender.com/api/matches?date=${date}`
@@ -32,10 +34,29 @@ function App() {
       .then(data => {
         setMatches(data);
         setLoading(false);
+        
+        // Debug info per capire cosa sta succedendo
+        if (data.length === 0) {
+          console.log('⚠️ Nessuna partita ricevuta, controllo info debug...');
+          loadDebugInfo();
+        }
       })
       .catch(err => {
         setError(err.message);
         setLoading(false);
+      });
+  };
+
+  // Funzione per caricare info debug sui campionati
+  const loadDebugInfo = () => {
+    fetch('https://pronostici-backend.onrender.com/api/status')
+      .then(res => res.json())
+      .then(data => {
+        setDebugInfo(data);
+        console.log('📊 Debug info:', data);
+      })
+      .catch(err => {
+        console.error('Errore caricamento debug info:', err);
       });
   };
 
@@ -51,7 +72,7 @@ function App() {
     const newDate = e.target.value;
     setSelectedDate(newDate);
     loadMatches(newDate);
-    setShowAllPronostics({}); // Reset pronostici espansi
+    setShowAllPronostics({});
   };
 
   const getPronosticoColor = (probabilita) => {
@@ -97,6 +118,16 @@ function App() {
     })}`;
   };
 
+  // Funzione per formattare correttamente l'orario (FIX TIMEZONE)
+  const formatMatchTime = (utcDateString) => {
+    const date = new Date(utcDateString);
+    return date.toLocaleTimeString('it-IT', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      timeZone: 'Europe/Rome' // CORREZIONE: Forza timezone italiano CEST (GMT+2)
+    });
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
@@ -104,6 +135,9 @@ function App() {
         <div>Analizzando partite per {selectedDate ? formatDateForDisplay(selectedDate) : 'oggi'}...</div>
         <div style={{ marginTop: '10px', color: '#666', fontSize: '14px' }}>
           Mercati: 1X2 • Doppia Chance • Under/Over • Goal/No Goal
+        </div>
+        <div style={{ marginTop: '15px', color: '#888', fontSize: '12px' }}>
+          Con debug avanzato per controllo campionati europei
         </div>
       </div>
     );
@@ -113,6 +147,21 @@ function App() {
     return (
       <div style={{ textAlign: 'center', padding: '50px', color: 'red' }}>
         ❌ Errore: {error}
+        <div style={{ marginTop: '20px' }}>
+          <button 
+            onClick={() => loadMatches(selectedDate)}
+            style={{
+              backgroundColor: '#f44336',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            🔄 Riprova
+          </button>
+        </div>
       </div>
     );
   }
@@ -170,6 +219,27 @@ function App() {
           <span style={{ backgroundColor: '#9C27B0', color: 'white', padding: '3px 8px', borderRadius: '10px' }}>Under/Over</span>
           <span style={{ backgroundColor: '#4CAF50', color: 'white', padding: '3px 8px', borderRadius: '10px' }}>Goal/No Goal</span>
         </div>
+
+        {/* DEBUG INFO quando non ci sono partite */}
+        {debugInfo && matches.length === 0 && (
+          <div style={{ 
+            marginTop: '20px',
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffeaa7',
+            borderRadius: '8px',
+            padding: '15px',
+            fontSize: '12px',
+            textAlign: 'left'
+          }}>
+            <strong>🔍 Info Debug API:</strong>
+            <div>• Richieste utilizzate: {debugInfo.requestCount}/{debugInfo.requestLimit}</div>
+            <div>• Richieste rimanenti: {debugInfo.remainingRequests}</div>
+            <div>• Reset tra: {debugInfo.resetTime}</div>
+            {debugInfo.supportedCompetitions && (
+              <div>• Campionati supportati: {debugInfo.supportedCompetitions.join(', ')}</div>
+            )}
+          </div>
+        )}
       </header>
       
       {/* MESSAGGIO QUANDO NON CI SONO PARTITE */}
@@ -184,8 +254,51 @@ function App() {
           <div style={{ fontSize: '48px', marginBottom: '15px' }}>😴</div>
           <h3>Nessuna partita per {formatDateForDisplay(selectedDate)}</h3>
           <p style={{ color: '#666' }}>
-            Prova a selezionare un'altra data o controlla nei giorni successivi.
+            {selectedDate === '2025-08-23' ? (
+              <>
+                <strong>Nota sulla Serie A:</strong><br />
+                Se la Serie A dovrebbe iniziare il 23 agosto 2025, potrebbero esserci questi motivi:<br />
+                • L'API Football-Data.org non ha ancora i calendari aggiornati per la stagione 2025-26<br />
+                • I campionati potrebbero essere disponibili solo a ridosso dell'inizio effettivo<br />
+                • Il piano gratuito potrebbe avere limitazioni sui campionati europei<br />
+                <br />
+              </>
+            ) : null}
+            Prova a selezionare un'altra data o controlla nei giorni successivi.<br />
+            <small style={{ color: '#888' }}>
+              Al momento sono disponibili principalmente campionati brasiliani, portoghesi e MLS che sono attivi tutto l'anno.
+            </small>
           </p>
+          
+          <div style={{ marginTop: '20px' }}>
+            <button 
+              onClick={() => loadMatches(selectedDate)}
+              style={{
+                backgroundColor: '#2196F3',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                marginRight: '10px'
+              }}
+            >
+              🔄 Ricarica
+            </button>
+            <button 
+              onClick={loadDebugInfo}
+              style={{
+                backgroundColor: '#FF9800',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              🔍 Aggiorna Debug Info
+            </button>
+          </div>
         </div>
       )}
       
@@ -205,12 +318,11 @@ function App() {
               {match.homeTeam.name} vs {match.awayTeam.name}
             </h3>
             <div style={{ color: '#666', fontSize: '14px', marginBottom: '8px' }}>
-              ⏰ {new Date(match.utcDate).toLocaleTimeString('it-IT', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
+              ⏰ {formatMatchTime(match.utcDate)} {/* ORARIO CORRETTO CON TIMEZONE */}
               <br />
               🏆 {match.competition?.name || 'Campionato'}
+              <br />
+              📅 {new Date(match.utcDate).toLocaleDateString('it-IT')}
             </div>
             
             {/* Dati statistici */}
@@ -376,6 +488,10 @@ function App() {
         🤖 AI Super-Intelligente • 16 mercati analizzati per partita • Seleziona qualsiasi data
         <br />
         ⚠️ I pronostici sono generati automaticamente e non garantiscono risultati reali
+        <br />
+        <small style={{ color: '#888' }}>
+          🔧 Con debug avanzato per controllo problemi API e campionati
+        </small>
       </footer>
     </div>
   );
